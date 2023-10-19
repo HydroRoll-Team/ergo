@@ -49,7 +49,7 @@ def convert(infile):
             line = line.decode('utf-8')
         except UnicodeDecodeError:
             line = line.decode('utf-8', 'replace')
-            logging.warning("line contained invalid utf8 data " + line)
+            logging.warning(f"line contained invalid utf8 data {line}")
         parts = line.split(' ')
         category = parts[0]
 
@@ -67,7 +67,6 @@ def convert(infile):
             name = parts[2]
             user = {'name': name, 'hash': parts[3], 'email': parts[4], 'registeredAt': to_unixnano(parts[5])}
             out['users'][name].update(user)
-            pass
         elif category == 'MN':
             # grouped nick
             # MN shivaram slingamn 1600218831 1600467343
@@ -172,14 +171,9 @@ def convert(infile):
                 chdata['amode'][username] = 'h'
             elif 'v' in flags or 'V' in flags:
                 chdata['amode'][username] = 'v'
-        else:
-            pass
-
     # do some basic integrity checks
     def validate_user(name):
-        if not name:
-            return False
-        return bool(out['users'].get(name))
+        return False if not name else bool(out['users'].get(name))
 
     invalid_channels = []
 

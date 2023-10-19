@@ -56,7 +56,7 @@ def file_to_objects(infile):
             line = line.decode('utf-8')
         except UnicodeDecodeError:
             line = line.decode('utf-8', 'replace')
-            logging.warning("line contained invalid utf8 data " + line)
+            logging.warning(f"line contained invalid utf8 data {line}")
         pieces = line.split(' ', maxsplit=2)
         if len(pieces) == 0:
             logging.warning("skipping blank line in db")
@@ -110,23 +110,19 @@ def convert(infile):
     lastmode_channels = set()
 
     for obj in objects:
-        if obj.type == 'NickCore':
-            username = obj.kv['display']
-            userdata = {'name': username, 'hash': obj.kv['pass'], 'email': obj.kv['email']}
-            certobj = obj.kv.get('cert')
-            if certobj:
-                userdata['certfps'] = validate_certfps(certobj)
-            out['users'][username] = userdata
-        elif obj.type == 'NickAlias':
-            username = obj.kv['nc']
-            nick = obj.kv['nick']
-            userdata = out['users'][username]
-            if username.lower() == nick.lower():
-                userdata['registeredAt'] = to_unixnano(obj.kv['time_registered'])
-            else:
-                if 'additionalNicks' not in userdata:
-                    userdata['additionalNicks'] = []
-                userdata['additionalNicks'].append(nick)
+        if obj.type == 'ChanAccess':
+            chname = obj.kv['ci']
+            target = obj.kv['mask']
+            mode = access_level_to_amode(obj.kv['data'])
+            if mode is None:
+                continue
+            if MASK_MAGIC_REGEX.search(target):
+                continue
+            chdata = out['channels'][chname]
+            amode = chdata.setdefault('amode', {})
+            amode[target] = mode
+            chdata['amode'] = amode
+
         elif obj.type == 'ChannelInfo':
             chname = obj.kv['name']
             founder = obj.kv['founder']
@@ -139,15 +135,14 @@ def convert(infile):
                 'topicSetAt': to_unixnano(obj.kv['last_topic_time']),
                 'amode': {founder: 'q',}
             }
-            # DATA last_modes INVITE KEY,hunter2 NOEXTERNAL REGISTERED TOPIC
-            last_modes = obj.kv.get('last_modes')
-            if last_modes:
+            if last_modes := obj.kv.get('last_modes'):
                 modes = []
                 for mode_desc in last_modes.split():
-                    if ',' in mode_desc:
-                        mode_name, mode_value = mode_desc.split(',', maxsplit=1)
-                    else:
-                        mode_name, mode_value = mode_desc, None
+                    mode_name, mode_value = (
+                        mode_desc.split(',', maxsplit=1)
+                        if ',' in mode_desc
+                        else (mode_desc, None)
+                    )
                     if mode_name == 'KEY':
                         chdata['key'] = mode_value
                     else:
@@ -172,19 +167,22 @@ def convert(infile):
                     stored_modes = chdata.get('modes', '')
                     stored_modes += oragono_mode
                     chdata['modes'] = stored_modes
-        elif obj.type == 'ChanAccess':
-            chname = obj.kv['ci']
-            target = obj.kv['mask']
-            mode = access_level_to_amode(obj.kv['data'])
-            if mode is None:
-                continue
-            if MASK_MAGIC_REGEX.search(target):
-                continue
-            chdata = out['channels'][chname]
-            amode = chdata.setdefault('amode', {})
-            amode[target] = mode
-            chdata['amode'] = amode
-
+        elif obj.type == 'NickAlias':
+            username = obj.kv['nc']
+            nick = obj.kv['nick']
+            userdata = out['users'][username]
+            if username.lower() == nick.lower():
+                userdata['registeredAt'] = to_unixnano(obj.kv['time_registered'])
+            else:
+                if 'additionalNicks' not in userdata:
+                    userdata['additionalNicks'] = []
+                userdata['additionalNicks'].append(nick)
+        elif obj.type == 'NickCore':
+            username = obj.kv['display']
+            userdata = {'name': username, 'hash': obj.kv['pass'], 'email': obj.kv['email']}
+            if certobj := obj.kv.get('cert'):
+                userdata['certfps'] = validate_certfps(certobj)
+            out['users'][username] = userdata
     # do some basic integrity checks
     for chname, chdata in out['channels'].items():
         founder = chdata.get('founder')

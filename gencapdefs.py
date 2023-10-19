@@ -224,10 +224,10 @@ CAPDEFS = [
 def validate_defs():
     CAPDEFS.sort(key=lambda d: d.name)
     numCaps = len(CAPDEFS)
-    numNames = len(set(capdef.name for capdef in CAPDEFS))
+    numNames = len({capdef.name for capdef in CAPDEFS})
     if numCaps != numNames:
         raise Exception("defs must have unique names, but found duplicates")
-    numIdentifiers = len(set(capdef.identifier for capdef in CAPDEFS))
+    numIdentifiers = len({capdef.identifier for capdef in CAPDEFS})
     if numCaps != numIdentifiers:
         raise Exception("defs must have unique identifiers, but found duplicates")
 
@@ -262,8 +262,8 @@ const (
     print("const (", file=output)
     for capdef in CAPDEFS:
         print("// %s is the %s capability named \"%s\":" % (capdef.identifier, capdef.standard, capdef.name), file=output)
-        print("// %s" % (capdef.url,), file=output)
-        print("%s Capability = iota" % (capdef.identifier,), file=output)
+        print(f"// {capdef.url}", file=output)
+        print(f"{capdef.identifier} Capability = iota", file=output)
         print(file=output)
     print(")", file=output)
 
